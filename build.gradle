@@ -1,0 +1,81 @@
+plugins {
+  id 'net.researchgate.release' version '2.0.2'
+}
+
+apply plugin: 'java'
+apply plugin: 'application'
+compileJava.options.encoding = 'UTF-8'
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+mainClassName = 'com.blogspot.nombre_temp.jetty.jersey.multi.project.example.ExampleStarter'
+
+jar {
+    manifest {
+        attributes 'Implementation-Title': 'Jetty and Jersey Multi Environment Example', 'Implementation-Version': version
+        attributes 'Main-Class': mainClassName
+    }
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '2.9'
+}
+
+// ******************** Configuration based on the environment ********************
+def setEnvironment() {
+    // For production use this argument: -Denv=prod1 or -Denv=prod2
+    ext.environment = System.properties.env ? System.properties.env : 'local'
+
+    if (!['local', 'qa', 'prod1', 'prod2'].contains(ext.environment)) {
+        throw new GradleException("Invalid environment: $ext.environment")
+    }
+}
+
+setEnvironment()
+
+processResources {
+    // Executed only if the configuration files and/or the system properties changed from previous execution
+    inputs.dir file("config/$environment")
+    inputs.properties System.properties
+
+    doFirst {
+        println "***********************************************************"
+        println "Using environment: $environment"
+        println "***********************************************************"
+
+        // Gets configuration values according to the environment being built
+        def environmentProperties = new Properties()
+
+        file("config/$environment").listFiles().each { file ->
+            file.withInputStream{
+                environmentProperties.load(it);
+            }
+        }
+
+        // Overwrites the values in the file with the ones given from command line arguments -Dkey
+        System.properties.each { key, value ->
+            if (environmentProperties.containsKey(key)) {
+                environmentProperties.put(key, value)
+            }
+        }
+
+        // Replaces all values with @name@ in the "src/main/resources" files with the ones in "environmentProperties"
+        filter(org.apache.tools.ant.filters.ReplaceTokens, tokens: environmentProperties)
+    }
+}
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    compile "org.eclipse.jetty:jetty-server:$jettyVersion"
+    compile "org.eclipse.jetty:jetty-servlet:$jettyVersion"
+
+    compile "org.glassfish.jersey.core:jersey-server:$jerseyVersion"
+    compile "org.glassfish.jersey.containers:jersey-container-servlet:$jerseyVersion"
+    compile "org.glassfish.jersey.media:jersey-media-json-jackson:$jerseyVersion"
+
+    compile "commons-configuration:commons-configuration:1.10"
+}
